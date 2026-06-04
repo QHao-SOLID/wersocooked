@@ -52,7 +52,11 @@
 
   {% if quests %}
   <div class="section-card pixel-border">
-    <h3 class="section-title">▸ QUESTS</h3>
+    <h3 class="section-title">▸ QUESTS
+      <form method="POST" action="{{ url_for('quest_refresh') }}" style="display:inline" onsubmit="return confirm('Discard current active quests and generate new ones?')">
+        <button class="pixel-btn pixel-border btn-small" style="margin-left:8px;font-size:7px">🔄 Refresh</button>
+      </form>
+    </h3>
     <div class="quests-list">
       {% for q in quests %}
       <div class="quest-card pixel-border {% if q.status == 'completed' %}quest-done{% endif %}" id="quest-{{ q.id }}">
@@ -64,12 +68,13 @@
         </div>
         <p class="quest-desc">{{ q.description }}</p>
         {% if q.status == 'completed' %}
-        <div class="quest-completed">✓ COMPLETED — {{ q.proof[:80] }}{% if q.proof_url %} <a href="{{ q.proof_url }}" target="_blank">🔗</a>{% endif %}</div>
+        <div class="quest-completed">✓ COMPLETED — {{ q.proof[:80] }}{% if q.proof_url %} <a href="{{ q.proof_url }}" target="_blank">🔗</a>{% endif %}{% if q.proof_file %} <a href="/uploads/quest_proofs/{{ q.proof_file }}" target="_blank">📎</a>{% endif %}</div>
         {% else %}
         <button class="pixel-btn pixel-border btn-small quest-complete-btn" data-quest-id="{{ q.id }}">▶ Complete Quest</button>
         <form class="quest-proof-form" id="proof-form-{{ q.id }}" style="display:none">
           <textarea name="proof" class="pixel-textarea pixel-border" rows="2" placeholder="Describe what you did and how... (proof of work required)" required></textarea>
           <input type="url" name="proof_url" class="pixel-input pixel-border" placeholder="Link to proof (GitHub, cert URL...)">
+          <input type="file" name="proof_file" accept=".pdf,.png,.jpg,.jpeg" class="pixel-input pixel-border" style="font-size:7px;padding:6px">
           <button type="submit" class="pixel-btn pixel-border btn-small">✓ Submit Proof</button>
           <div class="proof-status" id="pstatus-{{ q.id }}"></div>
         </form>

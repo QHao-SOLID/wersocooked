@@ -26,65 +26,6 @@ CLASS_MAP = {
     "Bard": {"icon": "🎵", "desc": "Design, creative, communication"},
 }
 
-CLASS_STATS = {
-    "Warrior": {"strength": 5, "intelligence": 2, "dexterity": 3, "wisdom": 2, "charisma": 3},
-    "Mage": {"strength": 1, "intelligence": 5, "dexterity": 2, "wisdom": 4, "charisma": 3},
-    "Rogue": {"strength": 2, "intelligence": 3, "dexterity": 5, "wisdom": 3, "charisma": 2},
-    "Paladin": {"strength": 3, "intelligence": 3, "dexterity": 2, "wisdom": 4, "charisma": 5},
-    "Ranger": {"strength": 3, "intelligence": 3, "dexterity": 4, "wisdom": 3, "charisma": 3},
-    "Bard": {"strength": 1, "intelligence": 3, "dexterity": 3, "wisdom": 3, "charisma": 5},
-}
-
-CLASS_SKILL_TREES = {
-    "Warrior": [
-        {"id": "w1", "name": "Git", "desc": "Version control mastery", "level": 1, "deps": []},
-        {"id": "w2", "name": "Docker", "desc": "Containerize anything", "level": 2, "deps": ["w1"]},
-        {"id": "w3", "name": "Linux", "desc": "Terminal combat veteran", "level": 2, "deps": ["w1"]},
-        {"id": "w4", "name": "AWS", "desc": "Cloud infrastructure", "level": 3, "deps": ["w2", "w3"]},
-        {"id": "w5", "name": "CI/CD", "desc": "Automated deployment", "level": 4, "deps": ["w4"]},
-        {"id": "w6", "name": "Kubernetes", "desc": "Orchestrate armies of containers", "level": 5, "deps": ["w5"]},
-    ],
-    "Mage": [
-        {"id": "m1", "name": "Python", "desc": "Arcane coding arts", "level": 1, "deps": []},
-        {"id": "m2", "name": "SQL", "desc": "Query the database of knowledge", "level": 2, "deps": ["m1"]},
-        {"id": "m3", "name": "Machine Learning", "desc": "Train magical models", "level": 3, "deps": ["m1", "m2"]},
-        {"id": "m4", "name": "Deep Learning", "desc": "Neural network sorcery", "level": 4, "deps": ["m3"]},
-        {"id": "m5", "name": "NLP", "desc": "Speak the language of machines", "level": 4, "deps": ["m3"]},
-        {"id": "m6", "name": "AI Research", "desc": "Push the boundaries of magic", "level": 5, "deps": ["m4", "m5"]},
-    ],
-    "Rogue": [
-        {"id": "r1", "name": "JavaScript", "desc": "Stealthy scripting", "level": 1, "deps": []},
-        {"id": "r2", "name": "React", "desc": "Reactive UI daggers", "level": 2, "deps": ["r1"]},
-        {"id": "r3", "name": "CSS", "desc": "Style camouflage", "level": 2, "deps": ["r1"]},
-        {"id": "r4", "name": "Performance", "desc": "Speed optimization", "level": 3, "deps": ["r2", "r3"]},
-        {"id": "r5", "name": "Security", "desc": "Find vulnerabilities", "level": 4, "deps": ["r4"]},
-        {"id": "r6", "name": "Mobile Dev", "desc": "Strike from any device", "level": 5, "deps": ["r5"]},
-    ],
-    "Paladin": [
-        {"id": "p1", "name": "Communication", "desc": "Inspire your party", "level": 1, "deps": []},
-        {"id": "p2", "name": "Agile", "desc": "Lead with agility", "level": 2, "deps": ["p1"]},
-        {"id": "p3", "name": "Project Management", "desc": "Coordinate quests", "level": 3, "deps": ["p2"]},
-        {"id": "p4", "name": "Strategy", "desc": "Long-term vision", "level": 4, "deps": ["p3"]},
-        {"id": "p5", "name": "Mentoring", "desc": "Level up your allies", "level": 4, "deps": ["p3"]},
-        {"id": "p6", "name": "Executive Leadership", "desc": "Command respect", "level": 5, "deps": ["p4", "p5"]},
-    ],
-    "Ranger": [
-        {"id": "ra1", "name": "Python", "desc": "Multi-purpose tool", "level": 1, "deps": []},
-        {"id": "ra2", "name": "JavaScript", "desc": "Frontier scripting", "level": 1, "deps": []},
-        {"id": "ra3", "name": "REST API", "desc": "Connect distant lands", "level": 2, "deps": ["ra1", "ra2"]},
-        {"id": "ra4", "name": "Database", "desc": "Store your findings", "level": 3, "deps": ["ra3"]},
-        {"id": "ra5", "name": "DevOps", "desc": "Survive any terrain", "level": 4, "deps": ["ra4"]},
-        {"id": "ra6", "name": "Architecture", "desc": "Design entire worlds", "level": 5, "deps": ["ra5"]},
-    ],
-    "Bard": [
-        {"id": "b1", "name": "Design", "desc": "Visual storytelling", "level": 1, "deps": []},
-        {"id": "b2", "name": "Writing", "desc": "Craft compelling tales", "level": 1, "deps": []},
-        {"id": "b3", "name": "UX Research", "desc": "Understand your audience", "level": 2, "deps": ["b1", "b2"]},
-        {"id": "b4", "name": "Branding", "desc": "Create a legend", "level": 3, "deps": ["b3"]},
-        {"id": "b5", "name": "Content Strategy", "desc": "Plan the narrative", "level": 4, "deps": ["b4"]},
-        {"id": "b6", "name": "Creative Direction", "desc": "Lead the vision", "level": 5, "deps": ["b5"]},
-    ],
-}
 
 
 def _get_deepseek_client():
@@ -311,57 +252,6 @@ CV:
         return result
 
     return _mock_extract(filepath)
-
-
-def generate_skill_tree(skills, rpg_class):
-    if not skills:
-        return {"nodes": [], "class": rpg_class, "stat_allocation": CLASS_STATS.get(rpg_class, CLASS_STATS["Warrior"])}
-
-    result = _call_deepseek(f"""Generate an RPG skill tree from these professional skills for a {rpg_class} class.
-Return JSON:
-{{
-  "class": "{rpg_class}",
-  "nodes": [
-    {{
-      "id": "node1",
-      "name": "skill_name",
-      "description": "rpg_style description",
-      "level": 1-5,
-      "dependencies": [],
-      "skill_match": "original skill name from list"
-    }}
-  ],
-  "stat_allocation": {{
-    "strength": 1-5,
-    "intelligence": 1-5,
-    "dexterity": 1-5,
-    "wisdom": 1-5,
-    "charisma": 1-5
-  }}
-}}
-Each skill from the list should map to a node. Dependencies reference other node IDs.
-Skills: {json.dumps(skills)}""", temp=0.5)
-
-    if result and "nodes" in result:
-        return result
-
-    tree = CLASS_SKILL_TREES.get(rpg_class, CLASS_SKILL_TREES["Warrior"])
-    matched_nodes = []
-    for node in tree:
-        if node["name"] in skills:
-            node["skill_match"] = node["name"]
-            node["unlocked"] = True
-            matched_nodes.append(node)
-    if not matched_nodes:
-        matched_nodes = [
-            {"id": "n1", "name": skills[0], "description": "Your primary skill", "level": 1, "dependencies": [], "skill_match": skills[0], "unlocked": True}
-        ]
-
-    return {
-        "class": rpg_class,
-        "nodes": matched_nodes,
-        "stat_allocation": CLASS_STATS.get(rpg_class, CLASS_STATS["Warrior"]),
-    }
 
 
 def process_text_entry(text):

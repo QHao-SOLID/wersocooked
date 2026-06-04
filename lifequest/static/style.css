@@ -114,7 +114,7 @@ a:hover { color: var(--gold); text-shadow: 0 0 8px var(--gold); }
 .auth-link a { color: var(--blue); }
 
 /* ── DASHBOARD ── */
-.dashboard, .players-page { max-width: 900px; margin: 0 auto; padding: 0 16px; }
+.dashboard { max-width: 900px; margin: 0 auto; padding: 0 16px; }
 
 .player-card {
   display: flex;
@@ -185,20 +185,7 @@ a:hover { color: var(--gold); text-shadow: 0 0 8px var(--gold); }
 #cv-upload-form .pixel-input { flex: 1; min-width: 150px; }
 #cv-status { margin-top: 10px; font-size: 8px; }
 
-/* ── PLAYERS ── */
-.players-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-.player-mini {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  background: var(--card-bg);
-  padding: 14px;
-  cursor: pointer;
-  transition: all 0.1s;
-}
-.player-mini:hover { border-color: var(--gold); box-shadow: 0 0 10px var(--gold); }
-.mini-info strong { display: block; font-size: 10px; color: var(--gold); }
-.mini-level { font-size: 7px; color: var(--dim); }
+
 
 /* ── SECTION CARDS ── */
 .section-card { background: var(--card-bg); padding: 20px; margin-bottom: 16px; }
@@ -296,6 +283,7 @@ a:hover { color: var(--gold); text-shadow: 0 0 8px var(--gold); }
 .prio-low { color: var(--dim); border-color: var(--dim); }
 .quest-desc { font-size: 7px; color: var(--text); line-height: 1.5; margin-bottom: 8px; }
 .quest-completed { font-size: 7px; color: var(--green); margin-top: 6px; }
+.quest-date { font-size: 7px; color: var(--dim); margin-top: 4px; }
 .quest-proof-form { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .quest-proof-form .pixel-textarea { min-height: 40px; }
 .quest-proof-form .pixel-input { font-size: 8px; padding: 6px 10px; }
@@ -369,8 +357,7 @@ a:hover { color: var(--gold); text-shadow: 0 0 8px var(--gold); }
 .friend-title { font-size: 6px; color: var(--dim); display: block; }
 .inline-form { display: flex; gap: 8px; align-items: center; }
 #send-status { margin-top: 8px; font-size: 8px; }
-.mini-action { margin-left: auto; }
-.friend-badge { font-size: 14px; }
+
 .stat-box a { text-decoration: none; }
 .stat-box a .stat-num { color: var(--gold); }
 .stat-box a:hover .stat-num { text-shadow: 0 0 8px var(--gold); }

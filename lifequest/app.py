@@ -1,7 +1,7 @@
 import json
 import os
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
 load_dotenv()
@@ -11,10 +11,12 @@ app.secret_key = os.urandom(24).hex()
 app.template_folder = "templates"
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
 AVATAR_FOLDER = os.path.join(UPLOAD_FOLDER, "avatars")
+QUEST_PROOF_FOLDER = os.path.join(UPLOAD_FOLDER, "quest_proofs")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(AVATAR_FOLDER, exist_ok=True)
+os.makedirs(QUEST_PROOF_FOLDER, exist_ok=True)
 
-from ai_extractor import extract_cv, generate_skill_tree, process_text_entry, CLASS_MAP
+from ai_extractor import extract_cv, process_text_entry, CLASS_MAP
 from game_mechanics import (
     check_level_up, are_friends, get_friends, count_friends,
     get_friend_requests_incoming, get_friend_requests_outgoing,
@@ -358,8 +360,18 @@ def quest_complete(quest_id):
     if not proof:
         return jsonify({"success": False, "error": "Proof of work is required"}), 400
 
+    proof_file = ""
+    if "proof_file" in request.files:
+        f = request.files["proof_file"]
+        if f.filename:
+            ext = os.path.splitext(f.filename)[1].lower()
+            if ext in {".pdf", ".png", ".jpg", ".jpeg"}:
+                filename = f"{uid}_{quest_id}_{secure_filename(f.filename)}"
+                f.save(os.path.join(QUEST_PROOF_FOLDER, filename))
+                proof_file = filename
+
     conn = get_db()
-    success, msg, xp_gain = complete_quest(conn, uid, quest_id, proof, proof_url)
+    success, msg, xp_gain = complete_quest(conn, uid, quest_id, proof, proof_url, proof_file)
     if success:
         level_up = check_level_up(conn, uid)
     else:
@@ -375,6 +387,52 @@ def quest_complete(quest_id):
         "levels_gained": level_up["levels_gained"],
         "new_level": level_up["new_level"],
     })
+
+# ── Quest refresh ──
+
+@app.route("/quest/refresh", methods=["POST"])
+@login_required
+def quest_refresh():
+    uid = session["user_id"]
+    conn = get_db()
+    quests = generate_quests(conn, uid)
+    active_count = sum(1 for q in quests if q.get("status") == "active")
+    conn.execute(
+        "UPDATE player_profiles SET quests = ? WHERE user_id = ?",
+        (json.dumps(quests), uid),
+    )
+    conn.commit()
+    conn.close()
+    flash(f"🔄 {active_count} new quests available!", "success")
+    return redirect(url_for("dashboard"))
+
+# ── Quest history ──
+
+@app.route("/quest/history")
+@login_required
+def quest_history():
+    uid = session["user_id"]
+    conn = get_db()
+    profile = conn.execute(
+        "SELECT quests FROM player_profiles WHERE user_id = ?", (uid,)
+    ).fetchone()
+    conn.close()
+    all_quests = json.loads(profile["quests"]) if profile and profile["quests"] else []
+    completed = [q for q in all_quests if q.get("status") == "completed"]
+    active = [q for q in all_quests if q.get("status") == "active"]
+    completed.sort(key=lambda q: q.get("completed_at", ""), reverse=True)
+    return render_template(
+        "quest_history.html",
+        completed=completed,
+        active=active,
+        username=session["username"],
+    )
+
+# ── Serve uploaded files ──
+
+@app.route("/uploads/<path:filename>")
+def serve_upload(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 if __name__ == "__main__":
     app.run(debug=True, host="127.0.0.1", port=5000)

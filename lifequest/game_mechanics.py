@@ -1,4 +1,6 @@
 import json
+from datetime import datetime
+from ai_extractor import _call_deepseek
 
 def xp_for_level(level):
     """XP needed to go from `level` to `level+1`."""
@@ -153,30 +155,9 @@ def remove_friend(conn, user_id, friend_id):
 
 # ── Quest system ──
 
-SKILL_COMPLEMENTS = [
-    ("Python", "SQL", "Python developers need SQL for backend roles. Learn basic queries and database design."),
-    ("React", "TypeScript", "React projects increasingly use TypeScript for type safety and better DX."),
-    ("Docker", "Kubernetes", "Docker pairs with Kubernetes for container orchestration at scale."),
-    ("Machine Learning", "SQL", "ML engineers need SQL to query and prepare datasets."),
-    ("JavaScript", "React", "React is the most in-demand frontend framework for JavaScript developers."),
-    ("AWS", "Docker", "Cloud deployments use Docker containers on AWS ECS/EKS."),
-    ("Node.js", "TypeScript", "Node.js backends commonly adopt TypeScript for maintainability."),
-    ("Data Analysis", "SQL", "Data analysts need SQL to query and manipulate databases."),
-]
-
-LEVEL_ADVICE = [
-    (1, "Build a portfolio project — even a small one shows initiative."),
-    (2, "Start contributing to open source. One PR is enough to stand out."),
-    (4, "Learn system design fundamentals — essential for mid-level roles."),
-    (6, "Mentor junior developers. Teaching accelerates your own growth."),
-    (9, "Consider writing or speaking at meetups. Visibility opens doors."),
-]
-
-QUESTS_PER_REGEN = 5
-
 
 def generate_quests(conn, user_id):
-    """Generate active quests based on profile gaps. Preserves completed quests."""
+    """Generate career-enhancing quests via DeepSeek. Falls back to mock when offline."""
     profile = conn.execute(
         "SELECT * FROM player_profiles WHERE user_id = ?", (user_id,)
     ).fetchone()
@@ -189,87 +170,151 @@ def generate_quests(conn, user_id):
     old_quests = json.loads(profile["quests"]) if profile["quests"] else []
     completed = [q for q in old_quests if q.get("status") == "completed"]
 
-    new_quests = []
+    summary = {
+        "level": level,
+        "class": profile["char_class"],
+        "title": profile["title"],
+        "skills": skills,
+        "work_roles": [w.get("role", "") for w in cv_data.get("work_experience", [])],
+        "has_education": len(cv_data.get("education", [])) > 0,
+        "has_projects": len(cv_data.get("projects", [])) > 0,
+        "has_leadership": len(cv_data.get("leadership", [])) > 0,
+        "friend_count": count_friends(conn, user_id),
+    }
+
+    try:
+        result = _call_deepseek(
+            "You are a career coach AI for LifeQuest, an RPG career development game.\n\n"
+            "Generate 3-5 career-enhancing quests for this player profile. "
+            "Each quest must be specific, actionable, and help advance their real career.\n\n"
+            f"Player Profile:\n{json.dumps(summary, indent=2)}\n\n"
+            'Output a JSON object with a "quests" array:\n'
+            "{\n"
+            '  "quests": [\n'
+            "    {\n"
+            '      "id": "q_0",\n'
+            '      "category": "skill_gap|profile_completion|career_advancement|certification|social",\n'
+            '      "priority": "high|medium|low",\n'
+            '      "title": "Short quest title",\n'
+            '      "description": "Detailed actionable description of what to do",\n'
+            '      "xp_reward": 80\n'
+            "    }\n"
+            "  ]\n"
+            "}\n\n"
+            "Rules:\n"
+            "- Each quest id must be unique (q_0, q_1, q_2, ...)\n"
+            "- XP rewards between 30 and 150, higher for harder quests\n"
+            "- Categories: skill_gap (learn a missing skill), profile_completion (add CV sections), "
+            "career_advancement (level up strategy), certification (earn a cert), social (network)\n"
+            "- Max 5 quests\n"
+            "- Make quests feel like RPG quests but grounded in real career actions",
+        )
+    except Exception:
+        result = None
+
+    if result and isinstance(result, dict) and "quests" in result:
+        raw = result["quests"]
+    else:
+        raw = _mock_quests(summary)
+
+    sanitized = []
+    for i, q in enumerate(raw[:5]):
+        cat = q.get("category", "career_advancement")
+        if cat not in ("skill_gap", "profile_completion", "career_advancement", "certification", "social"):
+            cat = "career_advancement"
+        prio = q.get("priority", "medium")
+        if prio not in ("high", "medium", "low"):
+            prio = "medium"
+        sanitized.append({
+            "id": q.get("id", f"q_{i}"),
+            "category": cat,
+            "priority": prio,
+            "title": (q.get("title") or f"Quest {i}")[:60],
+            "description": (q.get("description") or "Complete this quest to advance your career.")[:300],
+            "xp_reward": max(30, min(150, int(q.get("xp_reward", 50)))),
+            "status": "active",
+            "proof": "",
+            "proof_url": "",
+        })
+
+    return completed + sanitized
+
+
+def _mock_quests(summary):
+    quests = []
     idx = 0
+    skills = summary.get("skills", [])
+    has_work = bool(summary.get("work_roles"))
+    has_projects = summary.get("has_projects", False)
+    has_edu = summary.get("has_education", False)
+    has_lead = summary.get("has_leadership", False)
+    friend_count = summary.get("friend_count", 0)
 
-    # 1. Skill complement gaps
-    for sk_have, sk_need, why in SKILL_COMPLEMENTS:
-        if sk_have in skills and sk_need not in skills:
-            new_quests.append({
-                "id": f"q_skill_{idx}", "category": "skill_gap", "priority": "high",
-                "title": f"Learn {sk_need}",
-                "description": f"You have {sk_have} but not {sk_need}. {why}",
-                "xp_reward": 100, "status": "active", "proof": "", "proof_url": "",
-            })
-            idx += 1
-
-    # 2. Profile completeness
-    if not cv_data.get("work_experience"):
-        new_quests.append({
-            "id": f"q_profile_{idx}", "category": "profile_completion", "priority": "high",
-            "title": "Add work experience",
-            "description": "Your profile has no work history. Add internships, freelance work, or past roles.",
-            "xp_reward": 80, "status": "active", "proof": "", "proof_url": "",
-        })
+    if not has_work:
+        quests.append(dict(id=f"q_{idx}", category="profile_completion", priority="high",
+            title="Add work experience",
+            description="Your profile has no work history. Add internships, freelance work, or past roles.",
+            xp_reward=80, status="active", proof="", proof_url=""))
         idx += 1
-    if not cv_data.get("projects"):
-        new_quests.append({
-            "id": f"q_profile_{idx}", "category": "profile_completion", "priority": "medium",
-            "title": "Add a project",
-            "description": "No projects listed. Build something with your current skills and add it via AI Import.",
-            "xp_reward": 60, "status": "active", "proof": "", "proof_url": "",
-        })
+    if not has_projects:
+        quests.append(dict(id=f"q_{idx}", category="profile_completion", priority="medium",
+            title="Build a portfolio project",
+            description="Create a project using your current skills and add it to your profile.",
+            xp_reward=60, status="active", proof="", proof_url=""))
         idx += 1
-    if not cv_data.get("education"):
-        new_quests.append({
-            "id": f"q_profile_{idx}", "category": "profile_completion", "priority": "low",
-            "title": "Add your education",
-            "description": "List your degree or courses. Education builds credibility.",
-            "xp_reward": 40, "status": "active", "proof": "", "proof_url": "",
-        })
+    if not has_edu:
+        quests.append(dict(id=f"q_{idx}", category="profile_completion", priority="low",
+            title="Add your education",
+            description="List your degree or courses. Education builds credibility.",
+            xp_reward=40, status="active", proof="", proof_url=""))
         idx += 1
-
-    # 3. Advancement advice based on level
-    for adv_level, advice in LEVEL_ADVICE:
-        if level >= adv_level and not any(q.get("title") == advice[:30] for q in completed + new_quests):
-            new_quests.append({
-                "id": f"q_adv_{idx}", "category": "career_advancement", "priority": "medium",
-                "title": advice[:50].rsplit(" ", 1)[0] + ("..." if len(advice) > 50 else ""),
-                "description": advice,
-                "xp_reward": 60, "status": "active", "proof": "", "proof_url": "",
-            })
-            idx += 1
-            break  # one advancement quest at a time
-
-    # 4. Certifications
-    have_certs = any(p.get("certifications") for p in cv_data.get("projects", []))
-    if not have_certs and skills:
-        new_quests.append({
-            "id": f"q_cert_{idx}", "category": "certification", "priority": "medium",
-            "title": "Earn a certification",
-            "description": "Certifications validate your skills. Consider AWS, Azure, or a cloud certification.",
-            "xp_reward": 70, "status": "active", "proof": "", "proof_url": "",
-        })
-        idx += 1
-
-    # 5. Social engagement
-    friend_count = count_friends(conn, user_id)
     if friend_count < 3:
-        new_quests.append({
-            "id": f"q_social_{idx}", "category": "social", "priority": "low",
-            "title": "Connect with 3 players",
-            "description": "Networking is powerful. Find 3 players on the players page and connect.",
-            "xp_reward": 50, "status": "active", "proof": "", "proof_url": "",
-        })
+        quests.append(dict(id=f"q_{idx}", category="social", priority="low",
+            title="Connect with more players",
+            description="Networking is powerful. Connect with players to grow your professional network.",
+            xp_reward=50, status="active", proof="", proof_url=""))
         idx += 1
+    if idx < 5 and not has_lead:
+        quests.append(dict(id=f"q_{idx}", category="career_advancement", priority="medium",
+            title="Write a career reflection",
+            description="Write about what you've learned recently and where you want to grow.",
+            xp_reward=50, status="active", proof="", proof_url=""))
+        idx += 1
+    if idx < 5 and skills:
+        quests.append(dict(id=f"q_{idx}", category="certification", priority="medium",
+            title=f"Earn a {skills[0]} certification",
+            description=f"Get certified in {skills[0]} to validate your expertise.",
+            xp_reward=70, status="active", proof="", proof_url=""))
 
-    # Limit to QUESTS_PER_REGEN active quests
-    active = new_quests[:QUESTS_PER_REGEN]
-    return completed + active
+    return quests
 
 
-def complete_quest(conn, user_id, quest_id, proof, proof_url=""):
-    """Mark a quest as completed, award XP. Returns (success, msg, xp_gained)."""
+def validate_proof(proof_text, quest_info):
+    """Rate proof via DeepSeek. Returns {"score":0-10,"reason":"..."} or None."""
+    if not proof_text.strip():
+        return None
+    try:
+        result = _call_deepseek(
+            "You are a proof validator for LifeQuest, an RPG career development game.\n\n"
+            "Rate this proof submission from 0 to 10 based on:\n"
+            "- Does it demonstrate real effort?\n"
+            "- Is it credible and specific?\n"
+            "- Does it meaningfully relate to the quest?\n\n"
+            f"Quest: {quest_info.get('title', 'Unknown')}\n"
+            f"Description: {quest_info.get('description', '')}\n"
+            f"Proof: {proof_text[:2000]}\n\n"
+            'Return JSON only: {"score": 0-10, "reason": "brief explanation"}'
+        )
+        if result and isinstance(result, dict) and isinstance(result.get("score"), (int, float)):
+            result["score"] = max(0, min(10, int(result["score"])))
+            return result
+    except Exception:
+        pass
+    return None
+
+
+def complete_quest(conn, user_id, quest_id, proof, proof_url="", proof_file=""):
+    """Mark quest completed, validate proof, award XP (possibly halved)."""
     profile = conn.execute(
         "SELECT quests FROM player_profiles WHERE user_id = ?",
         (user_id,),
@@ -289,9 +334,25 @@ def complete_quest(conn, user_id, quest_id, proof, proof_url=""):
         return False, "Proof of work required", 0
 
     xp_gain = found.get("xp_reward", 50)
+    msg = "Quest completed!"
+
+    # Validate proof via DeepSeek
+    validation = validate_proof(proof.strip(), found)
+    if validation:
+        score = validation.get("score", 6)
+        if score >= 6:
+            pass  # full XP
+        elif score >= 3:
+            xp_gain = max(1, xp_gain // 2)
+            msg = f"Quest completed at half XP — {validation.get('reason', 'proof could be stronger')}"
+        else:
+            return False, f"Proof rejected: {validation.get('reason', 'Insufficient effort. Please provide more detail.')}", 0
+
     found["status"] = "completed"
     found["proof"] = proof.strip()
     found["proof_url"] = proof_url.strip()
+    found["proof_file"] = proof_file
+    found["completed_at"] = datetime.now().isoformat()
 
     conn.execute(
         "UPDATE player_profiles SET quests = ?, xp = xp + ? WHERE user_id = ?",
@@ -299,4 +360,4 @@ def complete_quest(conn, user_id, quest_id, proof, proof_url=""):
     )
     conn.commit()
 
-    return True, "Quest completed!", xp_gain
+    return True, msg, xp_gain

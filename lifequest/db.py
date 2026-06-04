@@ -28,7 +28,6 @@ def init_db():
             hp INTEGER DEFAULT 100,
             max_hp INTEGER DEFAULT 100,
             skills TEXT DEFAULT '[]',
-            skill_tree TEXT DEFAULT '{}',
             cv_data TEXT DEFAULT '{}',
             char_class TEXT DEFAULT 'Warrior',
             quests TEXT DEFAULT '[]',
