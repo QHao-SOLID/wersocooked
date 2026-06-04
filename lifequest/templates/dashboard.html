@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="dashboard">
+  {% set char_icon = {'Warrior':'⚔','Mage':'🔮','Rogue':'🗡','Paladin':'🛡','Ranger':'🏹','Bard':'🎵'}.get(profile.char_class,'?') %}
+  <div class="player-card pixel-border">
+    <div class="avatar-pixel">
+      {% if avatar.startswith('custom:') %}
+      <img src="/uploads/avatars/{{ avatar.replace('custom:', '') }}" alt="avatar" class="avatar-custom">
+      {% else %}
+      <div class="avatar-emoji">{{ avatar }}</div>
+      {% endif %}
+    </div>
+    <div class="player-info">
+      <h2 class="player-name">{{ username }} <span class="class-badge">{{ char_icon }} {{ profile.char_class or '' }}</span></h2>
+      <p class="player-title">{{ profile.title or 'Adventurer' }}</p>
+      <div class="stat-row"><span class="stat-label">LV</span><span class="stat-value">{{ profile.level }}</span></div>
+      <div class="stat-row"><span class="stat-label">HP</span><span class="stat-value">{{ profile.hp }}/{{ profile.max_hp }}</span></div>
+      <div class="xp-bar-container">
+        <div class="xp-label">XP {{ profile.xp }}/{{ profile.xp_to_next }}</div>
+        <div class="xp-bar pixel-border">
+          <div class="xp-fill" style="width:{{ (profile.xp / profile.xp_to_next * 100) if profile.xp_to_next else 0 }}%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="quick-stats pixel-border">
+    <div class="stat-box"><span class="stat-icon">⚔</span><span class="stat-num">{{ events|length }}</span><span class="stat-desc">Events</span></div>
+    <div class="stat-box"><span class="stat-icon">🏆</span><span class="stat-num">{{ quests | selectattr('status', 'equalto', 'completed') | list | length }}</span><span class="stat-desc">Quests</span></div>
+    <div class="stat-box"><span class="stat-icon">🤝</span><a href="{{ url_for('friends_page') }}"><span class="stat-num">{{ friend_count }}</span><span class="stat-desc">Allies</span></a></div>
+  </div>
+
+  {% if incoming_requests %}
+  <div class="section-card pixel-border">
+    <h3 class="section-title">▸ INCOMING FRIEND REQUESTS</h3>
+    {% for r in incoming_requests %}
+    <div class="friend-request-row">
+      <span>{{ r.username }} (Lv.{{ r.level }} {{ r.char_class }})</span>
+      <div class="req-actions">
+        <form method="POST" action="{{ url_for('friend_accept', request_id=r.id) }}" style="display:inline">
+          <button class="pixel-btn pixel-border btn-small">✓ Accept</button>
+        </form>
+        <form method="POST" action="{{ url_for('friend_reject', request_id=r.id) }}" style="display:inline">
+          <button class="pixel-btn pixel-border btn-small btn-danger">✗ Reject</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+    <a href="{{ url_for('friends_page') }}" class="view-all">View all →</a>
+  </div>
+  {% endif %}
+
+  {% if quests %}
+  <div class="section-card pixel-border">
+    <h3 class="section-title">▸ QUESTS</h3>
+    <div class="quests-list">
+      {% for q in quests %}
+      <div class="quest-card pixel-border {% if q.status == 'completed' %}quest-done{% endif %}" id="quest-{{ q.id }}">
+        <div class="quest-header">
+          <span class="quest-icon">{{ {'skill_gap':'💾','profile_completion':'💼','career_advancement':'🧭','certification':'📜','social':'🤝'}.get(q.category,'📋') }}</span>
+          <span class="quest-title">{{ q.title }}</span>
+          <span class="quest-xp">+{{ q.xp_reward }} XP</span>
+          <span class="quest-prio prio-{{ q.priority }}">{{ q.priority | upper }}</span>
+        </div>
+        <p class="quest-desc">{{ q.description }}</p>
+        {% if q.status == 'completed' %}
+        <div class="quest-completed">✓ COMPLETED — {{ q.proof[:80] }}{% if q.proof_url %} <a href="{{ q.proof_url }}" target="_blank">🔗</a>{% endif %}</div>
+        {% else %}
+        <button class="pixel-btn pixel-border btn-small quest-complete-btn" data-quest-id="{{ q.id }}">▶ Complete Quest</button>
+        <form class="quest-proof-form" id="proof-form-{{ q.id }}" style="display:none">
+          <textarea name="proof" class="pixel-textarea pixel-border" rows="2" placeholder="Describe what you did and how... (proof of work required)" required></textarea>
+          <input type="url" name="proof_url" class="pixel-input pixel-border" placeholder="Link to proof (GitHub, cert URL...)">
+          <button type="submit" class="pixel-btn pixel-border btn-small">✓ Submit Proof</button>
+          <div class="proof-status" id="pstatus-{{ q.id }}"></div>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="events-section">
+    <h3 class="section-title">▸ ACTIVE EVENTS</h3>
+    {% if events %}
+    <div class="events-grid">
+      {% for e in events %}
+      <div class="event-card pixel-border">
+        <h4>{{ e.title }}</h4>
+        <p class="event-desc">{{ e.description }}</p>
+        <div class="event-meta">
+          <span>Boss: {{ e.boss_name }}</span>
+          <span>XP: +{{ e.xp_reward }}</span>
+        </div>
+        <button class="pixel-btn pixel-border btn-small">▶ Enter</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state">No events yet. Upload your CV to begin your quest!</p>
+    {% endif %}
+  </div>
+
+  <div class="cv-section pixel-border">
+    <h3 class="section-title">▸ UPLOAD CV</h3>
+    <p class="cv-hint">Upload a PDF certificate to extract skills and boost your character.</p>
+    <form id="cv-upload-form" enctype="multipart/form-data">
+      <input type="file" name="cv_file" accept=".pdf" class="pixel-input pixel-border" id="cv-input" required>
+      <button type="submit" class="pixel-btn pixel-border">▶ UPLOAD</button>
+    </form>
+    <div id="cv-status"></div>
+  </div>
+
+  <div class="cv-section pixel-border">
+    <h3 class="section-title">▸ AI TEXT IMPORT</h3>
+    <p class="cv-hint">Paste a project description, GitHub README, certification details, work experience. The AI classifies it automatically.</p>
+    <form id="ai-entry-form">
+      <textarea name="text" class="pixel-textarea pixel-border" rows="4" placeholder="Paste text here..." required></textarea>
+      <button type="submit" class="pixel-btn pixel-border">▶ ANALYZE WITH AI</button>
+    </form>
+    <div id="ai-entry-status"></div>
+  </div>
+</div>
+<script>
+document.getElementById('cv-upload-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const form = new FormData(this);
+  const status = document.getElementById('cv-status');
+  status.innerHTML = '<span class="status-pending">Analyzing your CV...</span>';
+  document.querySelector('#cv-upload-form .pixel-btn').disabled = true;
+  try {
+    const resp = await fetch('/cv/upload', { method: 'POST', body: form });
+    const data = await resp.json();
+    if (data.error) {
+      status.innerHTML = '<span class="status-error">' + data.error + '</span>';
+    } else {
+      let msg = '✓ Extracted ' + data.skills.length + ' skills! Class: ' + data.class_icon + ' ' + data.rpg_class + '. XP +' + data.xp_gained + '!';
+      if (data.leveled_up) {
+        msg = '⬆ LEVEL UP! Lv' + (data.new_level - data.levels_gained) + ' → Lv' + data.new_level + '! ' + msg;
+        status.innerHTML = '<span class="status-levelup">' + msg + '</span>';
+      } else {
+        status.innerHTML = '<span class="status-success">' + msg + '</span>';
+      }
+      setTimeout(() => location.reload(), 2500);
+    }
+  } catch(err) {
+    status.innerHTML = '<span class="status-error">' + err.message + '</span>';
+  }
+  document.querySelector('#cv-upload-form .pixel-btn').disabled = false;
+});
+
+document.getElementById('ai-entry-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const form = new FormData(this);
+  const status = document.getElementById('ai-entry-status');
+  status.innerHTML = '<span class="status-pending">Classifying...</span>';
+  document.querySelector('#ai-entry-form .pixel-btn').disabled = true;
+  try {
+    const resp = await fetch('/cv/add-entry', { method: 'POST', body: form });
+    const data = await resp.json();
+    if (data.error) {
+      status.innerHTML = '<span class="status-error">' + data.error + '</span>';
+    } else {
+      const type = data.section_type.replace(/_/g, ' ');
+      let msg = '✓ Classified as <strong>' + type + '</strong>. Skills: ' + data.skills.join(', ') + '. XP +' + data.xp_gained + '!';
+      if (data.leveled_up) {
+        msg = '⬆ LEVEL UP! ' + msg;
+        status.innerHTML = '<span class="status-levelup">' + msg + '</span>';
+      } else {
+        status.innerHTML = '<span class="status-success">' + msg + '</span>';
+      }
+      setTimeout(() => location.reload(), 2500);
+    }
+  } catch(err) {
+    status.innerHTML = '<span class="status-error">' + err.message + '</span>';
+  }
+  document.querySelector('#ai-entry-form .pixel-btn').disabled = false;
+});
+
+document.querySelectorAll('.quest-complete-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const id = this.dataset.questId;
+    this.style.display = 'none';
+    document.getElementById('proof-form-' + id).style.display = 'block';
+  });
+});
+
+document.querySelectorAll('.quest-proof-form').forEach(form => {
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const qid = this.id.replace('proof-form-', '');
+    const formData = new FormData(this);
+    const status = document.getElementById('pstatus-' + qid);
+    status.innerHTML = '<span class="status-pending">Submitting...</span>';
+    try {
+      const resp = await fetch('/quest/complete/' + qid, { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (data.success) {
+        if (data.leveled_up) {
+          status.innerHTML = '<span class="status-levelup">Quest done! +' + data.xp_gained + ' XP. LEVEL UP!</span>';
+        } else {
+          status.innerHTML = '<span class="status-success">Quest done! +' + data.xp_gained + ' XP</span>';
+        }
+        setTimeout(() => location.reload(), 2000);
+      } else {
+        status.innerHTML = '<span class="status-error">' + (data.error || 'Failed') + '</span>';
+      }
+    } catch(err) {
+      status.innerHTML = '<span class="status-error">' + err.message + '</span>';
+    }
+  });
+});
+</script>
+{% endblock %}

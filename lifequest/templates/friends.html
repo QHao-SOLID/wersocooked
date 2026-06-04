@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="dashboard">
+  <h2 class="section-title">▸ FRIENDS</h2>
+
+  <div class="section-card pixel-border">
+    <h3 class="section-title">▸ SEND FRIEND REQUEST</h3>
+    <form id="send-req-form" class="inline-form">
+      <input type="number" name="user_id" placeholder="Enter player ID" class="pixel-input pixel-border" required min="1" style="max-width:200px">
+      <button type="submit" class="pixel-btn pixel-border btn-small">▶ Send</button>
+    </form>
+    <div id="send-status"></div>
+  </div>
+
+  {% if incoming_requests %}
+  <div class="section-card pixel-border">
+    <h3 class="section-title">▸ INCOMING REQUESTS ({{ incoming_requests|length }})</h3>
+    {% for r in incoming_requests %}
+    <div class="friend-request-row">
+      <a href="{{ url_for('profile', username=r.username) }}" class="req-user">{{ r.username }}</a>
+      <span class="req-detail">Lv.{{ r.level }} {{ r.char_class }}</span>
+      <div class="req-actions">
+        <form method="POST" action="{{ url_for('friend_accept', request_id=r.id) }}" style="display:inline">
+          <button class="pixel-btn pixel-border btn-small">✓ Accept</button>
+        </form>
+        <form method="POST" action="{{ url_for('friend_reject', request_id=r.id) }}" style="display:inline">
+          <button class="pixel-btn pixel-border btn-small btn-danger">✗</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if outgoing_requests %}
+  <div class="section-card pixel-border">
+    <h3 class="section-title">▸ SENT REQUESTS ({{ outgoing_requests|length }})</h3>
+    {% for r in outgoing_requests %}
+    <div class="friend-request-row">
+      <a href="{{ url_for('profile', username=r.username) }}" class="req-user">{{ r.username }}</a>
+      <span class="req-detail">Lv.{{ r.level }} {{ r.char_class }}</span>
+      <span class="status-pending">⏳ Pending</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if friends %}
+  <div class="section-card pixel-border">
+    <h3 class="section-title">▸ FRIENDS LIST ({{ friends|length }})</h3>
+    <div class="friends-grid">
+      {% for f in friends %}
+      <div class="friend-card pixel-border">
+        <div class="friend-avatar friend-avatar-emoji">{{ f.avatar or '🧑' }}</div>
+        <div class="friend-info">
+          <a href="{{ url_for('profile', username=f.username) }}"><strong>{{ f.username }}</strong></a>
+          <span class="friend-level">Lv.{{ f.level }} {{ f.char_class }}</span>
+          <span class="friend-title">{{ f.title }}</span>
+        </div>
+        <form method="POST" action="{{ url_for('friend_remove', friend_id=f.id) }}" style="display:inline">
+          <button class="pixel-btn pixel-border btn-small btn-danger">✗</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not incoming_requests and not outgoing_requests and not friends %}
+  <div class="section-card pixel-border">
+    <p class="empty-state">No friends yet. Enter a player ID above to send a friend request!</p>
+  </div>
+  {% endif %}
+</div>
+<script>
+document.getElementById('send-req-form')?.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const userId = this.querySelector('input[name="user_id"]').value;
+  const status = document.getElementById('send-status');
+  const resp = await fetch('/friend/send/' + userId, { method: 'POST' });
+  const data = await resp.json();
+  status.innerHTML = '<span class="' + (data.success ? 'status-success' : 'status-error') + '">' + data.message + '</span>';
+  if (data.success) setTimeout(() => location.reload(), 1500);
+});
+</script>
+{% endblock %}
